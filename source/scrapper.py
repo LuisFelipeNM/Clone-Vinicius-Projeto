@@ -121,15 +121,16 @@ def _get_votacao(id: str) -> dict:
     Coleta as informações de uma votação
     '''
 
-    # Ver se existem dados de votos
-    votos = _get(f'{BASE_URL}/votacoes/{id}/votos')
+    try:
+        votos = _get(f'{BASE_URL}/votacoes/{id}/votos')
+    except requests.exceptions.HTTPError:
+        raise VotacaoSemVotos()
 
     if not len(votos):
         raise VotacaoSemVotos()
     
     votos = _processar_votos(votos, id)
 
-    # Pegar as infos das votações
     votacao = _get(f'{BASE_URL}/votacoes/{id}')
     votacao['votos'] = votos
 
@@ -141,43 +142,45 @@ def _get_votacao(id: str) -> dict:
     if prop_citada != None:
         votacao['ultimaApresentacaoProposicao']['uriProposicaoCitada'] = _get_proposicao_citada(prop_citada)
 
-    # Pegar as infos das proposicões
-    
     return votacao
 
 def _get_id_votacoes(data_inicio: datetime, 
                      data_fim: datetime) -> list[dict]:
     '''
-    Coleta a lista de id de votações em um determinado período de tempo
-
-    Entradas:
-        inicio: data de inicio
-        fim: data de termino
-
-    Saída: Lista de ids
+    Coleta a lista de id de votações em um determinado período de tempo,
+    respeitando o limite de 31 dias da API.
     '''
     
-    total_data = []
-    data_fim = data_fim
+    total_ids = []
+    data_atual = data_inicio
+    
+    while data_atual <= data_fim:
+        # Define o fim do período para a requisição atual (fim do mês)
+        proximo_mes = data_atual.replace(day=28) + pd.Timedelta(days=4)
+        fim_periodo = proximo_mes - pd.Timedelta(days=proximo_mes.day)
 
-    while data_fim >= data_inicio:
+        # Garante que não ultrapassemos a data final geral
+        if fim_periodo > data_fim:
+            fim_periodo = data_fim
+
+        print_log(f"{'SCRAPPER':<10}: Buscando votações de {data_atual.strftime('%Y-%m-%d')} a {fim_periodo.strftime('%Y-%m-%d')}")
         
-        parametros = []
-
-        if data_fim.year == data_inicio.year:
-            parametros.append(f'dataInicio={data_inicio.strftime("%Y-%m-%d")}')
-
-        if data_fim.year + 1 == data_fim.year:
-            data_fim = datetime(data_fim.year, 12, 31)
+        parametros = [
+            f"dataInicio={data_atual.strftime('%Y-%m-%d')}",
+            f"dataFim={fim_periodo.strftime('%Y-%m-%d')}"
+        ]
         
-        parametros.append(f'dataFim={data_fim.strftime("%Y-%m-%d")}')
-
         resultado = _get_with_many_pages(f'{BASE_URL}/votacoes?', parametros)
-        total_data.extend(pd.DataFrame(resultado)['id'].to_list())
-        data_fim = data_fim.replace(year=data_fim.year - 1)
-    #
-
-    return total_data
+        
+        if resultado:
+            # Extrai apenas a coluna 'id' do resultado e adiciona à lista total
+            ids_periodo = pd.DataFrame(resultado)['id'].to_list()
+            total_ids.extend(ids_periodo)
+        
+        # Avança para o dia seguinte ao fim do período (início do próximo mês)
+        data_atual = fim_periodo + pd.Timedelta(days=1)
+        
+    return list(set(total_ids)) # Usa set para remover duplicatas e converte para lista
 
 def _get_deputados(votacoes: list, 
                    data_inicio: datetime, 
