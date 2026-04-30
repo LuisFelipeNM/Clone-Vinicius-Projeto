@@ -1,16 +1,11 @@
-data/jsons/*.*
-data/jsons/*/*.*
-data/logs/*.*
-data/logs/*/*.*
-data/networks/*.*
-data/networks/*/*.*
-data/proposicoes/*.*
-data/proposicoes/*/*.*
-data/resumos/*.*
-data/resumos/*/*.*
+# Mantém as pastas, mas ignora o conteúdo pesado
+data/jsons/discursos/*.json
+data/proposicoes/afetadas/*.pdf
+data/proposicoes/citadas/*.pdf
+data/networks/*.pkl
+data/logs/*.log
+
+# Ignora logs de sistema e arquivos de ambiente
 *.out
-__pycache__
-*.txt
-.vscode
-teste.py
-context.json
+.offload/
+__pycache__/
